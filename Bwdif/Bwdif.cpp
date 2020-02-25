@@ -55,18 +55,17 @@ struct BwdifData {
 
 template<typename T, bool spat>
 static inline void filterEdge(const T * prev2, const T * prev, const T * cur, const T * next, const T * next2, T * VS_RESTRICT dst, const int width,
-                              const int positiveStride, const int negativeStride, const int positiveStride2, const int negativeStride2,
-                              const int peak) noexcept {
-    const T * prev2Above2 = prev2 + negativeStride2;
-    const T * prev2Below2 = prev2 + positiveStride2;
+                              const int positiveStride, const int negativeStride, const int stride2, const int peak) noexcept {
+    const T * prev2Above2 = prev2 - stride2;
+    const T * prev2Below2 = prev2 + stride2;
     const T * prevAbove = prev + negativeStride;
     const T * prevBelow = prev + positiveStride;
     const T * curAbove = cur + negativeStride;
     const T * curBelow = cur + positiveStride;
     const T * nextAbove = next + negativeStride;
     const T * nextBelow = next + positiveStride;
-    const T * next2Above2 = next2 + negativeStride2;
-    const T * next2Below2 = next2 + positiveStride2;
+    const T * next2Above2 = next2 - stride2;
+    const T * next2Below2 = next2 + stride2;
 
     for (int x = 0; x < width; x++) {
         const int c = curAbove[x];
@@ -98,25 +97,23 @@ static inline void filterEdge(const T * prev2, const T * prev, const T * cur, co
 
 template<typename T>
 static inline void filterLine(const T * prev2, const T * prev, const T * cur, const T * next, const T * next2, T * VS_RESTRICT dst, const int width,
-                              const int positiveStride, const int negativeStride, const int positiveStride2, const int negativeStride2,
-                              const int positiveStride3, const int negativeStride3, const int positiveStride4, const int negativeStride4,
-                              const int peak) noexcept {
-    const T * prev2Above4 = prev2 + negativeStride4;
-    const T * prev2Below4 = prev2 + positiveStride4;
-    const T * prev2Above2 = prev2 + negativeStride2;
-    const T * prev2Below2 = prev2 + positiveStride2;
-    const T * prevAbove = prev + negativeStride;
-    const T * prevBelow = prev + positiveStride;
-    const T * curAbove3 = cur + negativeStride3;
-    const T * curAbove = cur + negativeStride;
-    const T * curBelow = cur + positiveStride;
-    const T * curBelow3 = cur + positiveStride3;
-    const T * nextAbove = next + negativeStride;
-    const T * nextBelow = next + positiveStride;
-    const T * next2Above2 = next2 + negativeStride2;
-    const T * next2Below2 = next2 + positiveStride2;
-    const T * next2Above4 = next2 + negativeStride4;
-    const T * next2Below4 = next2 + positiveStride4;
+                              const int stride, const int stride2, const int stride3, const int stride4, const int peak) noexcept {
+    const T * prev2Above4 = prev2 - stride4;
+    const T * prev2Above2 = prev2 - stride2;
+    const T * prev2Below2 = prev2 + stride2;
+    const T * prev2Below4 = prev2 + stride4;
+    const T * prevAbove = prev - stride;
+    const T * prevBelow = prev + stride;
+    const T * curAbove3 = cur - stride3;
+    const T * curAbove = cur - stride;
+    const T * curBelow = cur + stride;
+    const T * curBelow3 = cur + stride3;
+    const T * nextAbove = next - stride;
+    const T * nextBelow = next + stride;
+    const T * next2Above4 = next2 - stride4;
+    const T * next2Above2 = next2 - stride2;
+    const T * next2Below2 = next2 + stride2;
+    const T * next2Below4 = next2 + stride4;
 
     for (int x = 0; x < width; x++) {
         const int c = curAbove[x];
@@ -185,18 +182,17 @@ static void filter(const VSFrameRef * prevFrame, const VSFrameRef * curFrame, co
                     filterEdge<T, false>(prev2, prev, cur, next, next2, dst, width,
                                          y + 1 < height ? stride : -stride,
                                          y > 0 ? -stride : stride,
-                                         stride * 2, stride * -2,
+                                         stride * 2,
                                          d->peak);
                 else
                     filterEdge<T, true>(prev2, prev, cur, next, next2, dst, width,
                                         y + 1 < height ? stride : -stride,
                                         y > 0 ? -stride : stride,
-                                        stride * 2, stride * -2,
+                                        stride * 2,
                                         d->peak);
             } else {
                 filterLine(prev2, prev, cur, next, next2, dst, width,
-                           stride, -stride, stride * 2, stride * -2,
-                           stride * 3, stride * -3, stride * 4, stride * -4,
+                           stride, stride * 2, stride * 3, stride * 4,
                            d->peak);
             }
 
