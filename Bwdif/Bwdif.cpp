@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <type_traits>
 
 #include <VapourSynth.h>
 #include <VSHelper.h>
@@ -44,8 +45,11 @@
 static constexpr uint16_t coef_lf[2] = { 4309, 213 };
 static constexpr uint16_t coef_hf[3] = { 5570, 3801, 1016 };
 static constexpr uint16_t coef_sp[2] = { 5077, 981 };
+static constexpr float coef_lf_f[2] = { 4309 / 8192.0f, 213 / 8192.0f };
+static constexpr float coef_hf_f[3] = { 5570 / 8192.0f, 3801 / 8192.0f, 1016 / 8192.0f };
+static constexpr float coef_sp_f[2] = { 5077 / 8192.0f, 981 / 8192.0f };
 
-struct BwdifData {
+struct BwdifData final {
     VSNodeRef * node;
     VSVideoInfo vi;
     const VSVideoInfo * viSaved;
@@ -68,29 +72,55 @@ static inline void filterEdge(const T * prev2, const T * prev, const T * cur, co
     const T * next2Below2 = next2 + stride2;
 
     for (int x = 0; x < width; x++) {
-        const int c = curAbove[x];
-        const int d = (prev2[x] + next2[x]) >> 1;
-        const int e = curBelow[x];
-        const int temporal_diff0 = std::abs(prev2[x] - next2[x]);
-        const int temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) >> 1;
-        const int temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) >> 1;
-        int diff = std::max({ temporal_diff0 >> 1, temporal_diff1, temporal_diff2 });
+        if constexpr (std::is_integral_v<T>) {
+            const int c = curAbove[x];
+            const int d = (prev2[x] + next2[x]) >> 1;
+            const int e = curBelow[x];
+            const int temporal_diff0 = std::abs(prev2[x] - next2[x]);
+            const int temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) >> 1;
+            const int temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) >> 1;
+            int diff = std::max({ temporal_diff0 >> 1, temporal_diff1, temporal_diff2 });
 
-        if (!diff) {
-            dst[x] = d;
-        } else {
-            if (spat) {
-                const int b = ((prev2Above2[x] + next2Above2[x]) >> 1) - c;
-                const int f = ((prev2Below2[x] + next2Below2[x]) >> 1) - e;
-                const int dc = d - c;
-                const int de = d - e;
-                const int max = std::max({ de, dc, std::min(b, f) });
-                const int min = std::min({ de, dc, std::max(b, f) });
-                diff = std::max({ diff, min, -max });
+            if (!diff) {
+                dst[x] = d;
+            } else {
+                if constexpr (spat) {
+                    const int b = ((prev2Above2[x] + next2Above2[x]) >> 1) - c;
+                    const int f = ((prev2Below2[x] + next2Below2[x]) >> 1) - e;
+                    const int dc = d - c;
+                    const int de = d - e;
+                    const int max = std::max({ de, dc, std::min(b, f) });
+                    const int min = std::min({ de, dc, std::max(b, f) });
+                    diff = std::max({ diff, min, -max });
+                }
+
+                const int interpol = std::clamp((c + e) >> 1, d - diff, d + diff);
+                dst[x] = std::clamp(interpol, 0, peak);
             }
+        } else {
+            const float c = curAbove[x];
+            const float d = (prev2[x] + next2[x]) * 0.5f;
+            const float e = curBelow[x];
+            const float temporal_diff0 = std::abs(prev2[x] - next2[x]);
+            const float temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) * 0.5f;
+            const float temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) * 0.5f;
+            float diff = std::max({ temporal_diff0 * 0.5f, temporal_diff1, temporal_diff2 });
 
-            const int interpol = std::min(std::max((c + e) >> 1, d - diff), d + diff);
-            dst[x] = std::min(std::max(interpol, 0), peak);
+            if (!diff) {
+                dst[x] = d;
+            } else {
+                if constexpr (spat) {
+                    const float b = ((prev2Above2[x] + next2Above2[x]) * 0.5f) - c;
+                    const float f = ((prev2Below2[x] + next2Below2[x]) * 0.5f) - e;
+                    const float dc = d - c;
+                    const float de = d - e;
+                    const float max = std::max({ de, dc, std::min(b, f) });
+                    const float min = std::min({ de, dc, std::max(b, f) });
+                    diff = std::max({ diff, min, -max });
+                }
+
+                dst[x] = std::clamp((c + e) * 0.5f, d - diff, d + diff);
+            }
         }
     }
 }
@@ -116,40 +146,69 @@ static inline void filterLine(const T * prev2, const T * prev, const T * cur, co
     const T * next2Below4 = next2 + stride4;
 
     for (int x = 0; x < width; x++) {
-        const int c = curAbove[x];
-        const int d = (prev2[x] + next2[x]) >> 1;
-        const int e = curBelow[x];
-        const int temporal_diff0 = std::abs(prev2[x] - next2[x]);
-        const int temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) >> 1;
-        const int temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) >> 1;
-        int diff = std::max({ temporal_diff0 >> 1, temporal_diff1, temporal_diff2 });
+        if constexpr (std::is_integral_v<T>) {
+            const int c = curAbove[x];
+            const int d = (prev2[x] + next2[x]) >> 1;
+            const int e = curBelow[x];
+            const int temporal_diff0 = std::abs(prev2[x] - next2[x]);
+            const int temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) >> 1;
+            const int temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) >> 1;
+            int diff = std::max({ temporal_diff0 >> 1, temporal_diff1, temporal_diff2 });
 
-        if (!diff) {
-            dst[x] = d;
+            if (!diff) {
+                dst[x] = d;
+            } else {
+                const int b = ((prev2Above2[x] + next2Above2[x]) >> 1) - c;
+                const int f = ((prev2Below2[x] + next2Below2[x]) >> 1) - e;
+                const int dc = d - c;
+                const int de = d - e;
+                const int max = std::max({ de, dc, std::min(b, f) });
+                const int min = std::min({ de, dc, std::max(b, f) });
+                diff = std::max({ diff, min, -max });
+
+                int interpol;
+                if (std::abs(c - e) > temporal_diff0)
+                    interpol = (((coef_hf[0] * (prev2[x] + next2[x])
+                                  - coef_hf[1] * (prev2Above2[x] + next2Above2[x] + prev2Below2[x] + next2Below2[x])
+                                  + coef_hf[2] * (prev2Above4[x] + next2Above4[x] + prev2Below4[x] + next2Below4[x])) >> 2)
+                                + coef_lf[0] * (c + e) - coef_lf[1] * (curAbove3[x] + curBelow3[x])) >> 13;
+                else
+                    interpol = (coef_sp[0] * (c + e) - coef_sp[1] * (curAbove3[x] + curBelow3[x])) >> 13;
+
+                interpol = std::clamp(interpol, d - diff, d + diff);
+                dst[x] = std::clamp(interpol, 0, peak);
+            }
         } else {
-            const int b = ((prev2Above2[x] + next2Above2[x]) >> 1) - c;
-            const int f = ((prev2Below2[x] + next2Below2[x]) >> 1) - e;
-            const int dc = d - c;
-            const int de = d - e;
-            const int max = std::max({ de, dc, std::min(b, f) });
-            const int min = std::min({ de, dc, std::max(b, f) });
-            diff = std::max({ diff, min, -max });
+            const float c = curAbove[x];
+            const float d = (prev2[x] + next2[x]) * 0.5f;
+            const float e = curBelow[x];
+            const float temporal_diff0 = std::abs(prev2[x] - next2[x]);
+            const float temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) * 0.5f;
+            const float temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) * 0.5f;
+            float diff = std::max({ temporal_diff0 * 0.5f, temporal_diff1, temporal_diff2 });
 
-            int interpol;
-            if (std::abs(c - e) > temporal_diff0)
-                interpol = (((coef_hf[0] * (prev2[x] + next2[x])
-                              - coef_hf[1] * (prev2Above2[x] + next2Above2[x] + prev2Below2[x] + next2Below2[x])
-                              + coef_hf[2] * (prev2Above4[x] + next2Above4[x] + prev2Below4[x] + next2Below4[x])) >> 2)
-                            + coef_lf[0] * (c + e) - coef_lf[1] * (curAbove3[x] + curBelow3[x])) >> 13;
-            else
-                interpol = (coef_sp[0] * (c + e) - coef_sp[1] * (curAbove3[x] + curBelow3[x])) >> 13;
+            if (!diff) {
+                dst[x] = d;
+            } else {
+                const float b = ((prev2Above2[x] + next2Above2[x]) * 0.5f) - c;
+                const float f = ((prev2Below2[x] + next2Below2[x]) * 0.5f) - e;
+                const float dc = d - c;
+                const float de = d - e;
+                const float max = std::max({ de, dc, std::min(b, f) });
+                const float min = std::min({ de, dc, std::max(b, f) });
+                diff = std::max({ diff, min, -max });
 
-            if (interpol > d + diff)
-                interpol = d + diff;
-            else if (interpol < d - diff)
-                interpol = d - diff;
+                float interpol;
+                if (std::abs(c - e) > temporal_diff0)
+                    interpol = ((coef_hf_f[0] * (prev2[x] + next2[x])
+                                 - coef_hf_f[1] * (prev2Above2[x] + next2Above2[x] + prev2Below2[x] + next2Below2[x])
+                                 + coef_hf_f[2] * (prev2Above4[x] + next2Above4[x] + prev2Below4[x] + next2Below4[x])) * 0.25f
+                                + coef_lf_f[0] * (c + e) - coef_lf_f[1] * (curAbove3[x] + curBelow3[x]));
+                else
+                    interpol = coef_sp_f[0] * (c + e) - coef_sp_f[1] * (curAbove3[x] + curBelow3[x]);
 
-            dst[x] = std::min(std::max(interpol, 0), peak);
+                dst[x] = std::clamp(interpol, d - diff, d + diff);
+            }
         }
     }
 }
@@ -166,7 +225,12 @@ static void filter(const VSFrameRef * prevFrame, const VSFrameRef * curFrame, co
         const T * next = reinterpret_cast<const T *>(vsapi->getReadPtr(nextFrame, plane));
         T * VS_RESTRICT dst = reinterpret_cast<T *>(vsapi->getWritePtr(dstFrame, plane));
 
-        vs_bitblt(dst + stride * (1 - field), vsapi->getStride(dstFrame, plane) * 2, cur + stride * (1 - field), vsapi->getStride(curFrame, plane) * 2, width * sizeof(T), height / 2);
+        vs_bitblt(dst + stride * (1 - field),
+                  vsapi->getStride(dstFrame, plane) * 2,
+                  cur + stride * (1 - field),
+                  vsapi->getStride(curFrame, plane) * 2,
+                  width * sizeof(T),
+                  height / 2);
 
         prev += stride * field;
         cur += stride * field;
@@ -252,8 +316,10 @@ static const VSFrameRef * VS_CC bwdifGetFrame(int n, int activationReason, void 
 
         if (d->vi.format->bytesPerSample == 1)
             filter<uint8_t>(prev, cur, next, dst, field, d, vsapi);
-        else
+        else if (d->vi.format->bytesPerSample == 2)
             filter<uint16_t>(prev, cur, next, dst, field, d, vsapi);
+        else
+            filter<float>(prev, cur, next, dst, field, d, vsapi);
 
         VSMap * props = vsapi->getFramePropsRW(dst);
         vsapi->propSetInt(props, "_FieldBased", 0, paReplace);
@@ -285,35 +351,39 @@ static void VS_CC bwdifFree(void * instanceData, VSCore * core, const VSAPI * vs
 }
 
 static void VS_CC bwdifCreate(const VSMap * in, VSMap * out, void * userData, VSCore * core, const VSAPI * vsapi) {
+    using namespace std::literals;
+
     std::unique_ptr<BwdifData> d = std::make_unique<BwdifData>();
 
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
-    d->vi = *vsapi->getVideoInfo(d->node);
-    d->viSaved = vsapi->getVideoInfo(d->node);
-
     try {
-        if (!isConstantFormat(&d->vi) || d->vi.format->sampleType != stInteger || d->vi.format->bitsPerSample > 16)
-            throw std::string{ "only constant format 8-16 bit integer input supported" };
+        d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+        d->vi = *vsapi->getVideoInfo(d->node);
+        d->viSaved = vsapi->getVideoInfo(d->node);
+
+        if (!isConstantFormat(&d->vi) ||
+            (d->vi.format->sampleType == stInteger && d->vi.format->bitsPerSample > 16) ||
+            (d->vi.format->sampleType == stFloat && d->vi.format->bitsPerSample != 32))
+            throw "only constant format 8-16 bit integer and 32 bit float input supported"sv;
 
         if (d->vi.height < 4)
-            throw std::string{ "height must be greater than or equal to 4" };
+            throw "height must be greater than or equal to 4"sv;
 
         d->field = int64ToIntS(vsapi->propGetInt(in, "field", 0, nullptr));
 
         if (d->field < 0 || d->field > 3)
-            throw std::string{ "field must be 0, 1, 2, or 3" };
+            throw "field must be 0, 1, 2, or 3"sv;
 
         if (d->field > 1) {
             if (d->vi.numFrames > INT_MAX / 2)
-                throw std::string{ "resulting clip is too long" };
+                throw "resulting clip is too long"sv;
             d->vi.numFrames *= 2;
 
             muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, 2, 1);
         }
 
         d->peak = (1 << d->vi.format->bitsPerSample) - 1;
-    } catch (const std::string & error) {
-        vsapi->setError(out, ("Bwdif: " + error).c_str());
+    } catch (const std::string_view & error) {
+        vsapi->setError(out, ("Bwdif: "s + error.data()).c_str());
         vsapi->freeNode(d->node);
         return;
     }

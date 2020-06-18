@@ -11,7 +11,7 @@ Usage
 
     bwdif.Bwdif(clip clip, int field)
 
-* clip: Clip to process. Any planar format with integer sample type of 8-16 bit depth is supported.
+* clip: Clip to process. Any planar format with either integer sample type of 8-16 bit depth or float sample type of 32 bit depth is supported.
 
 * field: Controls the mode of operation (double vs same rate) and which field is kept.
   * 0 = same rate, keep bottom field
