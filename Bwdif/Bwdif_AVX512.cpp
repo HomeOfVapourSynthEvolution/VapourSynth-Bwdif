@@ -2,25 +2,25 @@
 #include "Bwdif.h"
 
 template<typename pixel_t, bool spat>
-void filterEdge_avx512(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width,
+void filterEdge_avx512(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width,
                        const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept {
-    const pixel_t * prev2 = reinterpret_cast<const pixel_t *>(_prev2);
-    const pixel_t * prev = reinterpret_cast<const pixel_t *>(_prev);
-    const pixel_t * cur = reinterpret_cast<const pixel_t *>(_cur);
-    const pixel_t * next = reinterpret_cast<const pixel_t *>(_next);
-    const pixel_t * next2 = reinterpret_cast<const pixel_t *>(_next2);
-    pixel_t * dst = reinterpret_cast<pixel_t *>(_dst);
+    const pixel_t* prev2 = reinterpret_cast<const pixel_t*>(_prev2);
+    const pixel_t* prev = reinterpret_cast<const pixel_t*>(_prev);
+    const pixel_t* cur = reinterpret_cast<const pixel_t*>(_cur);
+    const pixel_t* next = reinterpret_cast<const pixel_t*>(_next);
+    const pixel_t* next2 = reinterpret_cast<const pixel_t*>(_next2);
+    pixel_t* dst = reinterpret_cast<pixel_t*>(_dst);
 
-    const pixel_t * prev2Above2 = prev2 - stride2;
-    const pixel_t * prev2Below2 = prev2 + stride2;
-    const pixel_t * prevAbove = prev + negativeStride;
-    const pixel_t * prevBelow = prev + positiveStride;
-    const pixel_t * curAbove = cur + negativeStride;
-    const pixel_t * curBelow = cur + positiveStride;
-    const pixel_t * nextAbove = next + negativeStride;
-    const pixel_t * nextBelow = next + positiveStride;
-    const pixel_t * next2Above2 = next2 - stride2;
-    const pixel_t * next2Below2 = next2 + stride2;
+    const pixel_t* prev2Above2 = prev2 - stride2;
+    const pixel_t* prev2Below2 = prev2 + stride2;
+    const pixel_t* prevAbove = prev + negativeStride;
+    const pixel_t* prevBelow = prev + positiveStride;
+    const pixel_t* curAbove = cur + negativeStride;
+    const pixel_t* curBelow = cur + positiveStride;
+    const pixel_t* nextAbove = next + negativeStride;
+    const pixel_t* nextBelow = next + positiveStride;
+    const pixel_t* next2Above2 = next2 - stride2;
+    const pixel_t* next2Below2 = next2 + stride2;
 
     for (int x = 0; x < width; x += step) {
         if constexpr (std::is_same_v<pixel_t, uint8_t>) {
@@ -98,31 +98,31 @@ void filterEdge_avx512(const void * _prev2, const void * _prev, const void * _cu
 }
 
 template<typename pixel_t>
-void filterLine_avx512(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width,
+void filterLine_avx512(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width,
                        const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept {
-    const pixel_t * prev2 = reinterpret_cast<const pixel_t *>(_prev2);
-    const pixel_t * prev = reinterpret_cast<const pixel_t *>(_prev);
-    const pixel_t * cur = reinterpret_cast<const pixel_t *>(_cur);
-    const pixel_t * next = reinterpret_cast<const pixel_t *>(_next);
-    const pixel_t * next2 = reinterpret_cast<const pixel_t *>(_next2);
-    pixel_t * dst = reinterpret_cast<pixel_t *>(_dst);
+    const pixel_t* prev2 = reinterpret_cast<const pixel_t*>(_prev2);
+    const pixel_t* prev = reinterpret_cast<const pixel_t*>(_prev);
+    const pixel_t* cur = reinterpret_cast<const pixel_t*>(_cur);
+    const pixel_t* next = reinterpret_cast<const pixel_t*>(_next);
+    const pixel_t* next2 = reinterpret_cast<const pixel_t*>(_next2);
+    pixel_t* dst = reinterpret_cast<pixel_t*>(_dst);
 
-    const pixel_t * prev2Above4 = prev2 - stride4;
-    const pixel_t * prev2Above2 = prev2 - stride2;
-    const pixel_t * prev2Below2 = prev2 + stride2;
-    const pixel_t * prev2Below4 = prev2 + stride4;
-    const pixel_t * prevAbove = prev - stride;
-    const pixel_t * prevBelow = prev + stride;
-    const pixel_t * curAbove3 = cur - stride3;
-    const pixel_t * curAbove = cur - stride;
-    const pixel_t * curBelow = cur + stride;
-    const pixel_t * curBelow3 = cur + stride3;
-    const pixel_t * nextAbove = next - stride;
-    const pixel_t * nextBelow = next + stride;
-    const pixel_t * next2Above4 = next2 - stride4;
-    const pixel_t * next2Above2 = next2 - stride2;
-    const pixel_t * next2Below2 = next2 + stride2;
-    const pixel_t * next2Below4 = next2 + stride4;
+    const pixel_t* prev2Above4 = prev2 - stride4;
+    const pixel_t* prev2Above2 = prev2 - stride2;
+    const pixel_t* prev2Below2 = prev2 + stride2;
+    const pixel_t* prev2Below4 = prev2 + stride4;
+    const pixel_t* prevAbove = prev - stride;
+    const pixel_t* prevBelow = prev + stride;
+    const pixel_t* curAbove3 = cur - stride3;
+    const pixel_t* curAbove = cur - stride;
+    const pixel_t* curBelow = cur + stride;
+    const pixel_t* curBelow3 = cur + stride3;
+    const pixel_t* nextAbove = next - stride;
+    const pixel_t* nextBelow = next + stride;
+    const pixel_t* next2Above4 = next2 - stride4;
+    const pixel_t* next2Above2 = next2 - stride2;
+    const pixel_t* next2Below2 = next2 + stride2;
+    const pixel_t* next2Below4 = next2 + stride4;
 
     for (int x = 0; x < width; x += step) {
         if constexpr (std::is_same_v<pixel_t, uint8_t>) {
@@ -171,9 +171,9 @@ void filterLine_avx512(const void * _prev2, const void * _prev, const void * _cu
             const Vec16i diff = max(max(temporal_diff, minimum), -maximum);
 
             const Vec16i interpol1 = (((coef_hf[0] * (Vec16i().load_16us(prev2 + x) + Vec16i().load_16us(next2 + x))
-                                       - coef_hf[1] * (Vec16i().load_16us(prev2Above2 + x) + Vec16i().load_16us(next2Above2 + x) + Vec16i().load_16us(prev2Below2 + x) + Vec16i().load_16us(next2Below2 + x))
-                                       + coef_hf[2] * (Vec16i().load_16us(prev2Above4 + x) + Vec16i().load_16us(next2Above4 + x) + Vec16i().load_16us(prev2Below4 + x) + Vec16i().load_16us(next2Below4 + x))) >> 2)
-                                     + coef_lf[0] * (c + e) - coef_lf[1] * (Vec16i().load_16us(curAbove3 + x) + Vec16i().load_16us(curBelow3 + x))) >> 13;
+                                        - coef_hf[1] * (Vec16i().load_16us(prev2Above2 + x) + Vec16i().load_16us(next2Above2 + x) + Vec16i().load_16us(prev2Below2 + x) + Vec16i().load_16us(next2Below2 + x))
+                                        + coef_hf[2] * (Vec16i().load_16us(prev2Above4 + x) + Vec16i().load_16us(next2Above4 + x) + Vec16i().load_16us(prev2Below4 + x) + Vec16i().load_16us(next2Below4 + x))) >> 2)
+                                      + coef_lf[0] * (c + e) - coef_lf[1] * (Vec16i().load_16us(curAbove3 + x) + Vec16i().load_16us(curBelow3 + x))) >> 13;
             const Vec16i interpol2 = (coef_sp[0] * (c + e) - coef_sp[1] * (Vec16i().load_16us(curAbove3 + x) + Vec16i().load_16us(curBelow3 + x))) >> 13;
 
             Vec16i interpol = select(abs(c - e) > temporal_diff0, interpol1, interpol2);
@@ -199,9 +199,9 @@ void filterLine_avx512(const void * _prev2, const void * _prev, const void * _cu
             const Vec16f diff = max(max(temporal_diff, minimum), -maximum);
 
             const Vec16f interpol1 = ((coef_hf_f[0] * (Vec16f().load_a(prev2 + x) + Vec16f().load_a(next2 + x))
-                                      - coef_hf_f[1] * (Vec16f().load_a(prev2Above2 + x) + Vec16f().load_a(next2Above2 + x) + Vec16f().load_a(prev2Below2 + x) + Vec16f().load_a(next2Below2 + x))
-                                      + coef_hf_f[2] * (Vec16f().load_a(prev2Above4 + x) + Vec16f().load_a(next2Above4 + x) + Vec16f().load_a(prev2Below4 + x) + Vec16f().load_a(next2Below4 + x))) * 0.25f
-                                     + coef_lf_f[0] * (c + e) - coef_lf_f[1] * (Vec16f().load_a(curAbove3 + x) + Vec16f().load_a(curBelow3 + x)));
+                                       - coef_hf_f[1] * (Vec16f().load_a(prev2Above2 + x) + Vec16f().load_a(next2Above2 + x) + Vec16f().load_a(prev2Below2 + x) + Vec16f().load_a(next2Below2 + x))
+                                       + coef_hf_f[2] * (Vec16f().load_a(prev2Above4 + x) + Vec16f().load_a(next2Above4 + x) + Vec16f().load_a(prev2Below4 + x) + Vec16f().load_a(next2Below4 + x))) * 0.25f
+                                      + coef_lf_f[0] * (c + e) - coef_lf_f[1] * (Vec16f().load_a(curAbove3 + x) + Vec16f().load_a(curBelow3 + x)));
             const Vec16f interpol2 = coef_sp_f[0] * (c + e) - coef_sp_f[1] * (Vec16f().load_a(curAbove3 + x) + Vec16f().load_a(curBelow3 + x));
 
             Vec16f interpol = select(abs(c - e) > temporal_diff0, interpol1, interpol2);
@@ -211,14 +211,14 @@ void filterLine_avx512(const void * _prev2, const void * _prev, const void * _cu
     }
 }
 
-template void filterEdge_avx512<uint8_t, true>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_avx512<uint8_t, false>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_avx512<uint16_t, true>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_avx512<uint16_t, false>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_avx512<float, true>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_avx512<float, false>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_avx512<uint8_t, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_avx512<uint8_t, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_avx512<uint16_t, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_avx512<uint16_t, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_avx512<float, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_avx512<float, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
 
-template void filterLine_avx512<uint8_t>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
-template void filterLine_avx512<uint16_t>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
-template void filterLine_avx512<float>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_avx512<uint8_t>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_avx512<uint16_t>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_avx512<float>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
 #endif

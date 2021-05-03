@@ -2,25 +2,25 @@
 #include "Bwdif.h"
 
 template<typename pixel_t, bool spat>
-void filterEdge_sse2(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width,
+void filterEdge_sse2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width,
                      const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept {
-    const pixel_t * prev2 = reinterpret_cast<const pixel_t *>(_prev2);
-    const pixel_t * prev = reinterpret_cast<const pixel_t *>(_prev);
-    const pixel_t * cur = reinterpret_cast<const pixel_t *>(_cur);
-    const pixel_t * next = reinterpret_cast<const pixel_t *>(_next);
-    const pixel_t * next2 = reinterpret_cast<const pixel_t *>(_next2);
-    pixel_t * dst = reinterpret_cast<pixel_t *>(_dst);
+    const pixel_t* prev2 = reinterpret_cast<const pixel_t*>(_prev2);
+    const pixel_t* prev = reinterpret_cast<const pixel_t*>(_prev);
+    const pixel_t* cur = reinterpret_cast<const pixel_t*>(_cur);
+    const pixel_t* next = reinterpret_cast<const pixel_t*>(_next);
+    const pixel_t* next2 = reinterpret_cast<const pixel_t*>(_next2);
+    pixel_t* dst = reinterpret_cast<pixel_t*>(_dst);
 
-    const pixel_t * prev2Above2 = prev2 - stride2;
-    const pixel_t * prev2Below2 = prev2 + stride2;
-    const pixel_t * prevAbove = prev + negativeStride;
-    const pixel_t * prevBelow = prev + positiveStride;
-    const pixel_t * curAbove = cur + negativeStride;
-    const pixel_t * curBelow = cur + positiveStride;
-    const pixel_t * nextAbove = next + negativeStride;
-    const pixel_t * nextBelow = next + positiveStride;
-    const pixel_t * next2Above2 = next2 - stride2;
-    const pixel_t * next2Below2 = next2 + stride2;
+    const pixel_t* prev2Above2 = prev2 - stride2;
+    const pixel_t* prev2Below2 = prev2 + stride2;
+    const pixel_t* prevAbove = prev + negativeStride;
+    const pixel_t* prevBelow = prev + positiveStride;
+    const pixel_t* curAbove = cur + negativeStride;
+    const pixel_t* curBelow = cur + positiveStride;
+    const pixel_t* nextAbove = next + negativeStride;
+    const pixel_t* nextBelow = next + positiveStride;
+    const pixel_t* next2Above2 = next2 - stride2;
+    const pixel_t* next2Below2 = next2 + stride2;
 
     for (int x = 0; x < width; x += step) {
         if constexpr (std::is_same_v<pixel_t, uint8_t>) {
@@ -98,31 +98,31 @@ void filterEdge_sse2(const void * _prev2, const void * _prev, const void * _cur,
 }
 
 template<typename pixel_t>
-void filterLine_sse2(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width,
+void filterLine_sse2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width,
                      const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept {
-    const pixel_t * prev2 = reinterpret_cast<const pixel_t *>(_prev2);
-    const pixel_t * prev = reinterpret_cast<const pixel_t *>(_prev);
-    const pixel_t * cur = reinterpret_cast<const pixel_t *>(_cur);
-    const pixel_t * next = reinterpret_cast<const pixel_t *>(_next);
-    const pixel_t * next2 = reinterpret_cast<const pixel_t *>(_next2);
-    pixel_t * dst = reinterpret_cast<pixel_t *>(_dst);
+    const pixel_t* prev2 = reinterpret_cast<const pixel_t*>(_prev2);
+    const pixel_t* prev = reinterpret_cast<const pixel_t*>(_prev);
+    const pixel_t* cur = reinterpret_cast<const pixel_t*>(_cur);
+    const pixel_t* next = reinterpret_cast<const pixel_t*>(_next);
+    const pixel_t* next2 = reinterpret_cast<const pixel_t*>(_next2);
+    pixel_t* dst = reinterpret_cast<pixel_t*>(_dst);
 
-    const pixel_t * prev2Above4 = prev2 - stride4;
-    const pixel_t * prev2Above2 = prev2 - stride2;
-    const pixel_t * prev2Below2 = prev2 + stride2;
-    const pixel_t * prev2Below4 = prev2 + stride4;
-    const pixel_t * prevAbove = prev - stride;
-    const pixel_t * prevBelow = prev + stride;
-    const pixel_t * curAbove3 = cur - stride3;
-    const pixel_t * curAbove = cur - stride;
-    const pixel_t * curBelow = cur + stride;
-    const pixel_t * curBelow3 = cur + stride3;
-    const pixel_t * nextAbove = next - stride;
-    const pixel_t * nextBelow = next + stride;
-    const pixel_t * next2Above4 = next2 - stride4;
-    const pixel_t * next2Above2 = next2 - stride2;
-    const pixel_t * next2Below2 = next2 + stride2;
-    const pixel_t * next2Below4 = next2 + stride4;
+    const pixel_t* prev2Above4 = prev2 - stride4;
+    const pixel_t* prev2Above2 = prev2 - stride2;
+    const pixel_t* prev2Below2 = prev2 + stride2;
+    const pixel_t* prev2Below4 = prev2 + stride4;
+    const pixel_t* prevAbove = prev - stride;
+    const pixel_t* prevBelow = prev + stride;
+    const pixel_t* curAbove3 = cur - stride3;
+    const pixel_t* curAbove = cur - stride;
+    const pixel_t* curBelow = cur + stride;
+    const pixel_t* curBelow3 = cur + stride3;
+    const pixel_t* nextAbove = next - stride;
+    const pixel_t* nextBelow = next + stride;
+    const pixel_t* next2Above4 = next2 - stride4;
+    const pixel_t* next2Above2 = next2 - stride2;
+    const pixel_t* next2Below2 = next2 + stride2;
+    const pixel_t* next2Below4 = next2 + stride4;
 
     for (int x = 0; x < width; x += step) {
         if constexpr (std::is_same_v<pixel_t, uint8_t>) {
@@ -211,14 +211,14 @@ void filterLine_sse2(const void * _prev2, const void * _prev, const void * _cur,
     }
 }
 
-template void filterEdge_sse2<uint8_t, true>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_sse2<uint8_t, false>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_sse2<uint16_t, true>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_sse2<uint16_t, false>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_sse2<float, true>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
-template void filterEdge_sse2<float, false>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_sse2<uint8_t, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_sse2<uint8_t, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_sse2<uint16_t, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_sse2<uint16_t, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_sse2<float, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
+template void filterEdge_sse2<float, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step, const int peak) noexcept;
 
-template void filterLine_sse2<uint8_t>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
-template void filterLine_sse2<uint16_t>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
-template void filterLine_sse2<float>(const void * _prev2, const void * _prev, const void * _cur, const void * _next, const void * _next2, void * _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_sse2<uint8_t>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_sse2<uint16_t>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_sse2<float>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
 #endif

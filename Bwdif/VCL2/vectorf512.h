@@ -660,6 +660,14 @@ static inline Vec16f approx_recipr(Vec16f const a) {
 #endif
 }
 
+// Newton-Raphson refined approximate reciprocal (23 bit precision)
+static inline Vec16f rcp_nr(Vec16f const a) {
+    Vec16f nr = _mm512_rcp14_ps(a);
+    Vec16f muls = nr * nr * a;
+    Vec16f dbl = nr + nr;
+    return dbl - muls;
+}
+
 // approximate reciprocal squareroot (Faster than 1.f / sqrt(a).
 // Relative accuracy better than 2^-11 without AVX512, 2^-14 with AVX512F, full precision with AVX512ER)
 static inline Vec16f approx_rsqrt(Vec16f const a) {
