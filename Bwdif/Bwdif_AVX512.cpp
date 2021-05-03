@@ -32,7 +32,7 @@ void filterEdge_avx512(const void* _prev2, const void* _prev, const void* _cur, 
             const Vec32s temporal_diff2 = (abs(Vec32s().load_32uc(nextAbove + x) - c) + abs(Vec32s().load_32uc(nextBelow + x) - e)) >> 1;
             const Vec32s temporal_diff = max(max(temporal_diff0 >> 1, temporal_diff1), temporal_diff2);
 
-            Vec32s diff;
+            Vec32s diff = temporal_diff;
             if constexpr (spat) {
                 const Vec32s b = ((Vec32s().load_32uc(prev2Above2 + x) + Vec32s().load_32uc(next2Above2 + x)) >> 1) - c;
                 const Vec32s f = ((Vec32s().load_32uc(prev2Below2 + x) + Vec32s().load_32uc(next2Below2 + x)) >> 1) - e;
@@ -56,7 +56,7 @@ void filterEdge_avx512(const void* _prev2, const void* _prev, const void* _cur, 
             const Vec16i temporal_diff2 = (abs(Vec16i().load_16us(nextAbove + x) - c) + abs(Vec16i().load_16us(nextBelow + x) - e)) >> 1;
             const Vec16i temporal_diff = max(max(temporal_diff0 >> 1, temporal_diff1), temporal_diff2);
 
-            Vec16i diff;
+            Vec16i diff = temporal_diff;
             if constexpr (spat) {
                 const Vec16i b = ((Vec16i().load_16us(prev2Above2 + x) + Vec16i().load_16us(next2Above2 + x)) >> 1) - c;
                 const Vec16i f = ((Vec16i().load_16us(prev2Below2 + x) + Vec16i().load_16us(next2Below2 + x)) >> 1) - e;
@@ -80,7 +80,7 @@ void filterEdge_avx512(const void* _prev2, const void* _prev, const void* _cur, 
             const Vec16f temporal_diff2 = (abs(Vec16f().load_a(nextAbove + x) - c) + abs(Vec16f().load_a(nextBelow + x) - e)) * 0.5f;
             const Vec16f temporal_diff = max(max(temporal_diff0 * 0.5f, temporal_diff1), temporal_diff2);
 
-            Vec16f diff;
+            Vec16f diff = temporal_diff;
             if constexpr (spat) {
                 const Vec16f b = ((Vec16f().load_a(prev2Above2 + x) + Vec16f().load_a(next2Above2 + x)) * 0.5f) - c;
                 const Vec16f f = ((Vec16f().load_a(prev2Below2 + x) + Vec16f().load_a(next2Below2 + x)) * 0.5f) - e;

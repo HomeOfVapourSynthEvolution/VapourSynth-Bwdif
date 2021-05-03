@@ -32,7 +32,7 @@ void filterEdge_sse2(const void* _prev2, const void* _prev, const void* _cur, co
             const Vec8s temporal_diff2 = (abs(Vec8s().load_8uc(nextAbove + x) - c) + abs(Vec8s().load_8uc(nextBelow + x) - e)) >> 1;
             const Vec8s temporal_diff = max(max(temporal_diff0 >> 1, temporal_diff1), temporal_diff2);
 
-            Vec8s diff;
+            Vec8s diff = temporal_diff;
             if constexpr (spat) {
                 const Vec8s b = ((Vec8s().load_8uc(prev2Above2 + x) + Vec8s().load_8uc(next2Above2 + x)) >> 1) - c;
                 const Vec8s f = ((Vec8s().load_8uc(prev2Below2 + x) + Vec8s().load_8uc(next2Below2 + x)) >> 1) - e;
@@ -56,7 +56,7 @@ void filterEdge_sse2(const void* _prev2, const void* _prev, const void* _cur, co
             const Vec4i temporal_diff2 = (abs(Vec4i().load_4us(nextAbove + x) - c) + abs(Vec4i().load_4us(nextBelow + x) - e)) >> 1;
             const Vec4i temporal_diff = max(max(temporal_diff0 >> 1, temporal_diff1), temporal_diff2);
 
-            Vec4i diff;
+            Vec4i diff = temporal_diff;
             if constexpr (spat) {
                 const Vec4i b = ((Vec4i().load_4us(prev2Above2 + x) + Vec4i().load_4us(next2Above2 + x)) >> 1) - c;
                 const Vec4i f = ((Vec4i().load_4us(prev2Below2 + x) + Vec4i().load_4us(next2Below2 + x)) >> 1) - e;
@@ -80,7 +80,7 @@ void filterEdge_sse2(const void* _prev2, const void* _prev, const void* _cur, co
             const Vec4f temporal_diff2 = (abs(Vec4f().load_a(nextAbove + x) - c) + abs(Vec4f().load_a(nextBelow + x) - e)) * 0.5f;
             const Vec4f temporal_diff = max(max(temporal_diff0 * 0.5f, temporal_diff1), temporal_diff2);
 
-            Vec4f diff;
+            Vec4f diff = temporal_diff;
             if constexpr (spat) {
                 const Vec4f b = ((Vec4f().load_a(prev2Above2 + x) + Vec4f().load_a(next2Above2 + x)) * 0.5f) - c;
                 const Vec4f f = ((Vec4f().load_a(prev2Below2 + x) + Vec4f().load_a(next2Below2 + x)) * 0.5f) - e;
