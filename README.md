@@ -9,7 +9,7 @@ Ported from FFmpeg's libavfilter https://www.ffmpeg.org/ffmpeg-filters.html#bwdi
 Usage
 =====
 
-    bwdif.Bwdif(clip clip, int field[, int opt=0])
+    bwdif.Bwdif(clip clip, int field[, clip edeint=None, int opt=0])
 
 * clip: Clip to process. Any planar format with either integer sample type of 8-16 bit depth or float sample type of 32 bit depth is supported.
 
@@ -18,6 +18,8 @@ Usage
   * 1 = same rate, keep top field
   * 2 = double rate (alternates each frame), starts with bottom
   * 3 = double rate (alternates each frame), starts with top
+
+* edeint: Allows the specification of an external clip from which to take spatial predictions instead of having Bwdif use cubic interpolation. This clip must be the same width, height, and colorspace as the input clip. If using same rate output, this clip should have the same number of frames as the input. If using double rate output, this clip should have twice as many frames as the input.
 
 * opt: Sets which cpu optimizations to use.
   * 0 = auto detect
