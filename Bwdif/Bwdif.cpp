@@ -38,14 +38,16 @@
 
 #include "Bwdif.h"
 
+using namespace std::literals;
+
 #ifdef BWDIF_X86
 template<typename pixel_t, bool spat, bool hasEdeint> extern void filterEdge_sse2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept;
 template<typename pixel_t, bool spat, bool hasEdeint> extern void filterEdge_avx2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept;
 template<typename pixel_t, bool spat, bool hasEdeint> extern void filterEdge_avx512(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept;
 
-template<typename pixel_t, bool hasEdeint> extern void filterLine_sse2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
-template<typename pixel_t, bool hasEdeint> extern void filterLine_avx2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
-template<typename pixel_t, bool hasEdeint> extern void filterLine_avx512(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
+template<typename pixel_t, bool hasEdeint> extern void filterLine_sse2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template<typename pixel_t, bool hasEdeint> extern void filterLine_avx2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template<typename pixel_t, bool hasEdeint> extern void filterLine_avx512(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
 #endif
 
 struct BwdifData final {
@@ -56,198 +58,139 @@ struct BwdifData final {
     int field;
     int edgeStep;
     int lineStep;
+    int peak;
     void (*filter)(const VSFrameRef* prevFrame, const VSFrameRef* curFrame, const VSFrameRef* nextFrame, const VSFrameRef* edeintFrame, VSFrameRef* dstFrame, const int field, const BwdifData* const VS_RESTRICT d, const VSAPI* vsapi) noexcept;
     void (*filterEdgeWithSpat)(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept;
     void (*filterEdgeWithoutSpat)(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept;
-    void (*filterLine)(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
+    void (*filterLine)(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
 };
 
 template<typename pixel_t, bool spat, bool hasEdeint>
-static inline void filterEdge_c(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst,
-                                const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept {
-    const pixel_t* prev2 = reinterpret_cast<const pixel_t*>(_prev2);
-    const pixel_t* prev = reinterpret_cast<const pixel_t*>(_prev);
-    const pixel_t* cur = reinterpret_cast<const pixel_t*>(_cur);
-    const pixel_t* next = reinterpret_cast<const pixel_t*>(_next);
-    const pixel_t* next2 = reinterpret_cast<const pixel_t*>(_next2);
-    const pixel_t* edeint = reinterpret_cast<const pixel_t*>(_edeint);
-    pixel_t* VS_RESTRICT dst = reinterpret_cast<pixel_t*>(_dst);
+static void filterEdge_c(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst,
+                         const int width, const int positiveStride, const int negativeStride, const int stride2, [[maybe_unused]] const int step) noexcept {
+    auto prev2{ reinterpret_cast<const pixel_t*>(_prev2) };
+    auto prev{ reinterpret_cast<const pixel_t*>(_prev) };
+    auto cur{ reinterpret_cast<const pixel_t*>(_cur) };
+    auto next{ reinterpret_cast<const pixel_t*>(_next) };
+    auto next2{ reinterpret_cast<const pixel_t*>(_next2) };
+    auto edeint{ reinterpret_cast<const pixel_t*>(_edeint) };
+    auto dst{ reinterpret_cast<pixel_t*>(_dst) };
 
-    const pixel_t* prev2Above2 = prev2 - stride2;
-    const pixel_t* prev2Below2 = prev2 + stride2;
-    const pixel_t* prevAbove = prev + negativeStride;
-    const pixel_t* prevBelow = prev + positiveStride;
-    const pixel_t* curAbove = cur + negativeStride;
-    const pixel_t* curBelow = cur + positiveStride;
-    const pixel_t* nextAbove = next + negativeStride;
-    const pixel_t* nextBelow = next + positiveStride;
-    const pixel_t* next2Above2 = next2 - stride2;
-    const pixel_t* next2Below2 = next2 + stride2;
+    auto prev2Above2{ prev2 - stride2 };
+    auto prev2Below2{ prev2 + stride2 };
+    auto prevAbove{ prev + negativeStride };
+    auto prevBelow{ prev + positiveStride };
+    auto curAbove{ cur + negativeStride };
+    auto curBelow{ cur + positiveStride };
+    auto nextAbove{ next + negativeStride };
+    auto nextBelow{ next + positiveStride };
+    auto next2Above2{ next2 - stride2 };
+    auto next2Below2{ next2 + stride2 };
 
-    for (int x = 0; x < width; x++) {
-        if constexpr (std::is_integral_v<pixel_t>) {
-            const int c = curAbove[x];
-            const int d = (prev2[x] + next2[x]) >> 1;
-            const int e = curBelow[x];
-            const int temporal_diff0 = std::abs(prev2[x] - next2[x]);
-            const int temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) >> 1;
-            const int temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) >> 1;
-            int diff = std::max({ temporal_diff0 >> 1, temporal_diff1, temporal_diff2 });
+    for (auto x{ 0 }; x < width; x++) {
+        auto c{ curAbove[x] };
+        auto d{ div2<pixel_t>(prev2[x] + next2[x]) };
+        auto e{ curBelow[x] };
+        auto temporal_diff0{ std::abs(prev2[x] - next2[x]) };
+        auto temporal_diff1{ div2<pixel_t>(std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) };
+        auto temporal_diff2{ div2<pixel_t>(std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) };
+        auto diff{ std::max({ div2<pixel_t>(temporal_diff0), temporal_diff1, temporal_diff2 }) };
 
-            if (!diff) {
-                dst[x] = d;
-            } else {
-                if constexpr (spat) {
-                    const int b = ((prev2Above2[x] + next2Above2[x]) >> 1) - c;
-                    const int f = ((prev2Below2[x] + next2Below2[x]) >> 1) - e;
-                    const int dc = d - c;
-                    const int de = d - e;
-                    const int maximum = std::max({ de, dc, std::min(b, f) });
-                    const int minimum = std::min({ de, dc, std::max(b, f) });
-                    diff = std::max({ diff, minimum, -maximum });
-                }
-
-                int interpol;
-                if constexpr (hasEdeint)
-                    interpol = edeint[x];
-                else
-                    interpol = (c + e) >> 1;
-
-                dst[x] = std::clamp(interpol, d - diff, d + diff);
-            }
+        if (!diff) {
+            dst[x] = static_cast<pixel_t>(d);
         } else {
-            const float c = curAbove[x];
-            const float d = (prev2[x] + next2[x]) * 0.5f;
-            const float e = curBelow[x];
-            const float temporal_diff0 = std::abs(prev2[x] - next2[x]);
-            const float temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) * 0.5f;
-            const float temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) * 0.5f;
-            float diff = std::max({ temporal_diff0 * 0.5f, temporal_diff1, temporal_diff2 });
-
-            if (!diff) {
-                dst[x] = d;
-            } else {
-                if constexpr (spat) {
-                    const float b = ((prev2Above2[x] + next2Above2[x]) * 0.5f) - c;
-                    const float f = ((prev2Below2[x] + next2Below2[x]) * 0.5f) - e;
-                    const float dc = d - c;
-                    const float de = d - e;
-                    const float maximum = std::max({ de, dc, std::min(b, f) });
-                    const float minimum = std::min({ de, dc, std::max(b, f) });
-                    diff = std::max({ diff, minimum, -maximum });
-                }
-
-                float interpol;
-                if constexpr (hasEdeint)
-                    interpol = edeint[x];
-                else
-                    interpol = (c + e) * 0.5f;
-
-                dst[x] = std::clamp(interpol, d - diff, d + diff);
+            if constexpr (spat) {
+                auto b{ div2<pixel_t>(prev2Above2[x] + next2Above2[x]) - c };
+                auto f{ div2<pixel_t>(prev2Below2[x] + next2Below2[x]) - e };
+                auto dc{ d - c };
+                auto de{ d - e };
+                auto maximum{ std::max({ de, dc, std::min(b, f) }) };
+                auto minimum{ std::min({ de, dc, std::max(b, f) }) };
+                diff = std::max({ diff, minimum, -maximum });
             }
+
+            decltype(d) interpol;
+            if constexpr (hasEdeint)
+                interpol = edeint[x];
+            else
+                interpol = div2<pixel_t>(c + e);
+
+            dst[x] = static_cast<pixel_t>(std::clamp(interpol, d - diff, d + diff));
         }
     }
 }
 
 template<typename pixel_t, bool hasEdeint>
-static inline void filterLine_c(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst,
-                                const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept {
-    const pixel_t* prev2 = reinterpret_cast<const pixel_t*>(_prev2);
-    const pixel_t* prev = reinterpret_cast<const pixel_t*>(_prev);
-    const pixel_t* cur = reinterpret_cast<const pixel_t*>(_cur);
-    const pixel_t* next = reinterpret_cast<const pixel_t*>(_next);
-    const pixel_t* next2 = reinterpret_cast<const pixel_t*>(_next2);
-    const pixel_t* edeint = reinterpret_cast<const pixel_t*>(_edeint);
-    pixel_t* VS_RESTRICT dst = reinterpret_cast<pixel_t*>(_dst);
+static void filterLine_c(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst,
+                         const int width, const int stride, const int stride2, const int stride3, const int stride4, [[maybe_unused]] const int step, const int peak) noexcept {
+    auto prev2{ reinterpret_cast<const pixel_t*>(_prev2) };
+    auto prev{ reinterpret_cast<const pixel_t*>(_prev) };
+    auto cur{ reinterpret_cast<const pixel_t*>(_cur) };
+    auto next{ reinterpret_cast<const pixel_t*>(_next) };
+    auto next2{ reinterpret_cast<const pixel_t*>(_next2) };
+    auto edeint{ reinterpret_cast<const pixel_t*>(_edeint) };
+    auto dst{ reinterpret_cast<pixel_t*>(_dst) };
 
-    const pixel_t* prev2Above4 = prev2 - stride4;
-    const pixel_t* prev2Above2 = prev2 - stride2;
-    const pixel_t* prev2Below2 = prev2 + stride2;
-    const pixel_t* prev2Below4 = prev2 + stride4;
-    const pixel_t* prevAbove = prev - stride;
-    const pixel_t* prevBelow = prev + stride;
-    const pixel_t* curAbove3 = cur - stride3;
-    const pixel_t* curAbove = cur - stride;
-    const pixel_t* curBelow = cur + stride;
-    const pixel_t* curBelow3 = cur + stride3;
-    const pixel_t* nextAbove = next - stride;
-    const pixel_t* nextBelow = next + stride;
-    const pixel_t* next2Above4 = next2 - stride4;
-    const pixel_t* next2Above2 = next2 - stride2;
-    const pixel_t* next2Below2 = next2 + stride2;
-    const pixel_t* next2Below4 = next2 + stride4;
+    auto prev2Above4{ prev2 - stride4 };
+    auto prev2Above2{ prev2 - stride2 };
+    auto prev2Below2{ prev2 + stride2 };
+    auto prev2Below4{ prev2 + stride4 };
+    auto prevAbove{ prev - stride };
+    auto prevBelow{ prev + stride };
+    auto curAbove3{ cur - stride3 };
+    auto curAbove{ cur - stride };
+    auto curBelow{ cur + stride };
+    auto curBelow3{ cur + stride3 };
+    auto nextAbove{ next - stride };
+    auto nextBelow{ next + stride };
+    auto next2Above4{ next2 - stride4 };
+    auto next2Above2{ next2 - stride2 };
+    auto next2Below2{ next2 + stride2 };
+    auto next2Below4{ next2 + stride4 };
 
-    for (int x = 0; x < width; x++) {
-        if constexpr (std::is_integral_v<pixel_t>) {
-            const int c = curAbove[x];
-            const int d = (prev2[x] + next2[x]) >> 1;
-            const int e = curBelow[x];
-            const int temporal_diff0 = std::abs(prev2[x] - next2[x]);
-            const int temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) >> 1;
-            const int temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) >> 1;
-            int diff = std::max({ temporal_diff0 >> 1, temporal_diff1, temporal_diff2 });
+    for (auto x{ 0 }; x < width; x++) {
+        auto c{ curAbove[x] };
+        auto d{ div2<pixel_t>(prev2[x] + next2[x]) };
+        auto e{ curBelow[x] };
+        auto temporal_diff0{ std::abs(prev2[x] - next2[x]) };
+        auto temporal_diff1{ div2<pixel_t>(std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) };
+        auto temporal_diff2{ div2<pixel_t>(std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) };
+        auto diff{ std::max({ div2<pixel_t>(temporal_diff0), temporal_diff1, temporal_diff2 }) };
 
-            if (!diff) {
-                dst[x] = d;
-            } else {
-                const int b = ((prev2Above2[x] + next2Above2[x]) >> 1) - c;
-                const int f = ((prev2Below2[x] + next2Below2[x]) >> 1) - e;
-                const int dc = d - c;
-                const int de = d - e;
-                const int maximum = std::max({ de, dc, std::min(b, f) });
-                const int minimum = std::min({ de, dc, std::max(b, f) });
-                diff = std::max({ diff, minimum, -maximum });
-
-                int interpol;
-                if (std::abs(c - e) > temporal_diff0) {
-                    interpol = (((coef_hf[0] * (prev2[x] + next2[x])
-                                  - coef_hf[1] * (prev2Above2[x] + next2Above2[x] + prev2Below2[x] + next2Below2[x])
-                                  + coef_hf[2] * (prev2Above4[x] + next2Above4[x] + prev2Below4[x] + next2Below4[x])) >> 2)
-                                + coef_lf[0] * (c + e) - coef_lf[1] * (curAbove3[x] + curBelow3[x])) >> 13;
-                } else {
-                    if constexpr (hasEdeint)
-                        interpol = edeint[x];
-                    else
-                        interpol = (coef_sp[0] * (c + e) - coef_sp[1] * (curAbove3[x] + curBelow3[x])) >> 13;
-                }
-
-                dst[x] = std::clamp(interpol, d - diff, d + diff);
-            }
+        if (!diff) {
+            dst[x] = static_cast<pixel_t>(d);
         } else {
-            const float c = curAbove[x];
-            const float d = (prev2[x] + next2[x]) * 0.5f;
-            const float e = curBelow[x];
-            const float temporal_diff0 = std::abs(prev2[x] - next2[x]);
-            const float temporal_diff1 = (std::abs(prevAbove[x] - c) + std::abs(prevBelow[x] - e)) * 0.5f;
-            const float temporal_diff2 = (std::abs(nextAbove[x] - c) + std::abs(nextBelow[x] - e)) * 0.5f;
-            float diff = std::max({ temporal_diff0 * 0.5f, temporal_diff1, temporal_diff2 });
+            auto b{ div2<pixel_t>(prev2Above2[x] + next2Above2[x]) - c };
+            auto f{ div2<pixel_t>(prev2Below2[x] + next2Below2[x]) - e };
+            auto dc{ d - c };
+            auto de{ d - e };
+            auto maximum{ std::max({ de, dc, std::min(b, f) }) };
+            auto minimum{ std::min({ de, dc, std::max(b, f) }) };
+            diff = std::max({ diff, minimum, -maximum });
 
-            if (!diff) {
-                dst[x] = d;
+            decltype(d) interpol;
+            if (std::abs(c - e) > temporal_diff0) {
+                interpol = div4<pixel_t>(coefHF<pixel_t>()[0] * (prev2[x] + next2[x])
+                                         - coefHF<pixel_t>()[1] * (prev2Above2[x] + next2Above2[x] + prev2Below2[x] + next2Below2[x])
+                                         + coefHF<pixel_t>()[2] * (prev2Above4[x] + next2Above4[x] + prev2Below4[x] + next2Below4[x]))
+                    + coefLF<pixel_t>()[0] * (c + e) - coefLF<pixel_t>()[1] * (curAbove3[x] + curBelow3[x]);
+                if constexpr (std::is_integral_v<pixel_t>)
+                    interpol >>= 13;
             } else {
-                const float b = ((prev2Above2[x] + next2Above2[x]) * 0.5f) - c;
-                const float f = ((prev2Below2[x] + next2Below2[x]) * 0.5f) - e;
-                const float dc = d - c;
-                const float de = d - e;
-                const float maximum = std::max({ de, dc, std::min(b, f) });
-                const float minimum = std::min({ de, dc, std::max(b, f) });
-                diff = std::max({ diff, minimum, -maximum });
-
-                float interpol;
-                if (std::abs(c - e) > temporal_diff0) {
-                    interpol = ((coef_hf_f[0] * (prev2[x] + next2[x])
-                                 - coef_hf_f[1] * (prev2Above2[x] + next2Above2[x] + prev2Below2[x] + next2Below2[x])
-                                 + coef_hf_f[2] * (prev2Above4[x] + next2Above4[x] + prev2Below4[x] + next2Below4[x])) * 0.25f
-                                + coef_lf_f[0] * (c + e) - coef_lf_f[1] * (curAbove3[x] + curBelow3[x]));
+                if constexpr (hasEdeint) {
+                    interpol = edeint[x];
                 } else {
-                    if constexpr (hasEdeint)
-                        interpol = edeint[x];
-                    else
-                        interpol = coef_sp_f[0] * (c + e) - coef_sp_f[1] * (curAbove3[x] + curBelow3[x]);
+                    interpol = coefSP<pixel_t>()[0] * (c + e) - coefSP<pixel_t>()[1] * (curAbove3[x] + curBelow3[x]);
+                    if constexpr (std::is_integral_v<pixel_t>)
+                        interpol >>= 13;
                 }
-
-                dst[x] = std::clamp(interpol, d - diff, d + diff);
             }
+
+            interpol = std::clamp(interpol, d - diff, d + diff);
+            if constexpr (std::is_integral_v<pixel_t>)
+                interpol = std::clamp(interpol, 0, peak);
+
+            dst[x] = static_cast<pixel_t>(interpol);
         }
     }
 }
@@ -255,16 +198,16 @@ static inline void filterLine_c(const void* _prev2, const void* _prev, const voi
 template<typename pixel_t>
 static void filter(const VSFrameRef* prevFrame, const VSFrameRef* curFrame, const VSFrameRef* nextFrame, const VSFrameRef* edeintFrame, VSFrameRef* dstFrame,
                    const int field, const BwdifData* const VS_RESTRICT d, const VSAPI* vsapi) noexcept {
-    for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
-        const int width = vsapi->getFrameWidth(curFrame, plane);
-        const int height = vsapi->getFrameHeight(curFrame, plane);
-        const int stride = vsapi->getStride(curFrame, plane) / sizeof(pixel_t);
-        const pixel_t* prev = reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(prevFrame, plane));
-        const pixel_t* cur = reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(curFrame, plane));
-        const pixel_t* next = reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(nextFrame, plane));
-        pixel_t* VS_RESTRICT dst = reinterpret_cast<pixel_t*>(vsapi->getWritePtr(dstFrame, plane));
+    for (auto plane{ 0 }; plane < d->vi.format->numPlanes; plane++) {
+        const auto width{ vsapi->getFrameWidth(curFrame, plane) };
+        const auto height{ vsapi->getFrameHeight(curFrame, plane) };
+        const auto stride{ vsapi->getStride(curFrame, plane) / d->vi.format->bytesPerSample };
+        auto prev{ reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(prevFrame, plane)) };
+        auto cur{ reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(curFrame, plane)) };
+        auto next{ reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(nextFrame, plane)) };
+        auto dst{ reinterpret_cast<pixel_t*>(vsapi->getWritePtr(dstFrame, plane)) };
 
-        const pixel_t* edeint = nullptr;
+        decltype(cur) edeint{ nullptr };
         if (edeintFrame)
             edeint = reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(edeintFrame, plane));
 
@@ -282,10 +225,10 @@ static void filter(const VSFrameRef* prevFrame, const VSFrameRef* curFrame, cons
             edeint += stride * field;
         dst += stride * field;
 
-        const pixel_t* prev2 = field ? prev : cur;
-        const pixel_t* next2 = field ? cur : next;
+        auto prev2{ field ? prev : cur };
+        auto next2{ field ? cur : next };
 
-        for (int y = field; y < height; y += 2) {
+        for (auto y{ field }; y < height; y += 2) {
             if ((y < 4) || (y + 5 > height)) {
                 if ((y < 2) || (y + 3 > height))
                     d->filterEdgeWithoutSpat(prev2, prev, cur, next, next2, edeint, dst,
@@ -305,7 +248,7 @@ static void filter(const VSFrameRef* prevFrame, const VSFrameRef* curFrame, cons
                 d->filterLine(prev2, prev, cur, next, next2, edeint, dst,
                               width,
                               stride, stride * 2, stride * 3, stride * 4,
-                              d->lineStep);
+                              d->lineStep, d->peak);
             }
 
             prev2 += stride * 2;
@@ -320,16 +263,16 @@ static void filter(const VSFrameRef* prevFrame, const VSFrameRef* curFrame, cons
     }
 }
 
-static void VS_CC bwdifInit(VSMap* in, VSMap* out, void** instanceData, VSNode* node, VSCore* core, const VSAPI* vsapi) {
-    BwdifData* d = static_cast<BwdifData*>(*instanceData);
+static void VS_CC bwdifInit([[maybe_unused]] VSMap* in, [[maybe_unused]] VSMap* out, void** instanceData, VSNode* node, [[maybe_unused]] VSCore* core, const VSAPI* vsapi) {
+    auto d{ static_cast<const BwdifData*>(*instanceData) };
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
-static const VSFrameRef* VS_CC bwdifGetFrame(int n, int activationReason, void** instanceData, void** frameData, VSFrameContext* frameCtx, VSCore* core, const VSAPI* vsapi) {
-    const BwdifData* d = static_cast<const BwdifData*>(*instanceData);
+static const VSFrameRef* VS_CC bwdifGetFrame(int n, int activationReason, void** instanceData, [[maybe_unused]] void** frameData, VSFrameContext* frameCtx, VSCore* core, const VSAPI* vsapi) {
+    auto d{ static_cast<const BwdifData*>(*instanceData) };
 
     if (activationReason == arInitial) {
-        const int nSaved = n;
+        auto nSaved{ n };
         if (d->field > 1)
             n /= 2;
 
@@ -342,24 +285,24 @@ static const VSFrameRef* VS_CC bwdifGetFrame(int n, int activationReason, void**
         if (d->edeint)
             vsapi->requestFrameFilter(nSaved, d->edeint, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const int nSaved = n;
-        int field = d->field;
+        auto nSaved{ n };
+        auto field{ d->field };
         if (d->field > 1) {
             n /= 2;
             field -= 2;
         }
 
-        const VSFrameRef* prev = vsapi->getFrameFilter(std::max(n - 1, 0), d->node, frameCtx);
-        const VSFrameRef* cur = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrameRef* next = vsapi->getFrameFilter(std::min(n + 1, d->viSaved->numFrames - 1), d->node, frameCtx);
-        VSFrameRef* dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, cur, core);
+        auto prev{ vsapi->getFrameFilter(std::max(n - 1, 0), d->node, frameCtx) };
+        auto cur{ vsapi->getFrameFilter(n, d->node, frameCtx) };
+        auto next{ vsapi->getFrameFilter(std::min(n + 1, d->viSaved->numFrames - 1), d->node, frameCtx) };
+        auto dst{ vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, cur, core) };
 
-        const VSFrameRef* edeint = nullptr;
+        decltype(cur) edeint{ nullptr };
         if (d->edeint)
             edeint = vsapi->getFrameFilter(nSaved, d->edeint, frameCtx);
 
         int err;
-        const int fieldBased = int64ToIntS(vsapi->propGetInt(vsapi->getFramePropsRO(cur), "_FieldBased", 0, &err));
+        auto fieldBased{ int64ToIntS(vsapi->propGetInt(vsapi->getFramePropsRO(cur), "_FieldBased", 0, &err)) };
         if (fieldBased == 1)
             field = 0;
         else if (fieldBased == 2)
@@ -367,20 +310,20 @@ static const VSFrameRef* VS_CC bwdifGetFrame(int n, int activationReason, void**
 
         if (d->field > 1) {
             if (nSaved & 1)
-                field = (field == 0);
+                field = field == 0;
             else
-                field = (field == 1);
+                field = field == 1;
         }
 
         d->filter(prev, cur, next, edeint, dst, field, d, vsapi);
 
-        VSMap* props = vsapi->getFramePropsRW(dst);
+        auto props{ vsapi->getFramePropsRW(dst) };
         vsapi->propSetInt(props, "_FieldBased", 0, paReplace);
 
         if (d->field > 1) {
             int errNum, errDen;
-            int64_t durationNum = vsapi->propGetInt(props, "_DurationNum", 0, &errNum);
-            int64_t durationDen = vsapi->propGetInt(props, "_DurationDen", 0, &errDen);
+            auto durationNum{ vsapi->propGetInt(props, "_DurationNum", 0, &errNum) };
+            auto durationDen{ vsapi->propGetInt(props, "_DurationDen", 0, &errDen) };
             if (!errNum && !errDen) {
                 muldivRational(&durationNum, &durationDen, 1, 2);
                 vsapi->propSetInt(props, "_DurationNum", durationNum, paReplace);
@@ -398,17 +341,15 @@ static const VSFrameRef* VS_CC bwdifGetFrame(int n, int activationReason, void**
     return nullptr;
 }
 
-static void VS_CC bwdifFree(void* instanceData, VSCore* core, const VSAPI* vsapi) {
-    BwdifData* d = static_cast<BwdifData*>(instanceData);
+static void VS_CC bwdifFree(void* instanceData, [[maybe_unused]] VSCore* core, const VSAPI* vsapi) {
+    auto d{ static_cast<BwdifData*>(instanceData) };
     vsapi->freeNode(d->node);
     vsapi->freeNode(d->edeint);
     delete d;
 }
 
-static void VS_CC bwdifCreate(const VSMap* in, VSMap* out, void* userData, VSCore* core, const VSAPI* vsapi) {
-    using namespace std::literals;
-
-    std::unique_ptr<BwdifData> d = std::make_unique<BwdifData>();
+static void VS_CC bwdifCreate(const VSMap* in, VSMap* out, [[maybe_unused]] void* userData, VSCore* core, const VSAPI* vsapi) {
+    auto d{ std::make_unique<BwdifData>() };
 
     try {
         d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
@@ -426,7 +367,7 @@ static void VS_CC bwdifCreate(const VSMap* in, VSMap* out, void* userData, VSCor
 
         d->field = int64ToIntS(vsapi->propGetInt(in, "field", 0, nullptr));
         d->edeint = vsapi->propGetNode(in, "edeint", 0, &err);
-        const int opt = int64ToIntS(vsapi->propGetInt(in, "opt", 0, &err));
+        auto opt{ int64ToIntS(vsapi->propGetInt(in, "opt", 0, &err)) };
 
         if (d->field < 0 || d->field > 3)
             throw "field must be 0, 1, 2, or 3";
@@ -471,7 +412,7 @@ static void VS_CC bwdifCreate(const VSMap* in, VSMap* out, void* userData, VSCor
             }
 
 #ifdef BWDIF_X86
-            const int iset = instrset_detect();
+            auto iset{ instrset_detect() };
             if ((opt == 0 && iset >= 10) || opt == 4) {
                 if (d->vi.format->bytesPerSample == 1) {
                     if (d->edeint) {
@@ -597,8 +538,11 @@ static void VS_CC bwdifCreate(const VSMap* in, VSMap* out, void* userData, VSCor
                 throw "edeint clip must have the same format and dimensions as main clip";
 
             if (vsapi->getVideoInfo(d->edeint)->numFrames != d->vi.numFrames)
-                throw "edeint clip's number of frames doesn't match";
+                throw "edeint clip's number of frames does not match";
         }
+
+        if (d->vi.format->sampleType == stInteger)
+            d->peak = (1 << d->vi.format->bitsPerSample) - 1;
     } catch (const char* error) {
         vsapi->setError(out, ("Bwdif: "s + error).c_str());
         vsapi->freeNode(d->node);

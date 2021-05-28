@@ -4,250 +4,164 @@
 template<typename pixel_t, bool spat, bool hasEdeint>
 void filterEdge_avx2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst,
                      const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept {
-    const pixel_t* prev2 = reinterpret_cast<const pixel_t*>(_prev2);
-    const pixel_t* prev = reinterpret_cast<const pixel_t*>(_prev);
-    const pixel_t* cur = reinterpret_cast<const pixel_t*>(_cur);
-    const pixel_t* next = reinterpret_cast<const pixel_t*>(_next);
-    const pixel_t* next2 = reinterpret_cast<const pixel_t*>(_next2);
-    const pixel_t* edeint = reinterpret_cast<const pixel_t*>(_edeint);
-    pixel_t* dst = reinterpret_cast<pixel_t*>(_dst);
+    static constexpr auto load = [](auto srcp) noexcept {
+        if constexpr (std::is_same_v<pixel_t, uint8_t>)
+            return Vec16s().load_16uc(srcp);
+        else if constexpr (std::is_same_v<pixel_t, uint16_t>)
+            return Vec8i().load_8us(srcp);
+        else
+            return Vec8f().load_a(srcp);
+    };
 
-    const pixel_t* prev2Above2 = prev2 - stride2;
-    const pixel_t* prev2Below2 = prev2 + stride2;
-    const pixel_t* prevAbove = prev + negativeStride;
-    const pixel_t* prevBelow = prev + positiveStride;
-    const pixel_t* curAbove = cur + negativeStride;
-    const pixel_t* curBelow = cur + positiveStride;
-    const pixel_t* nextAbove = next + negativeStride;
-    const pixel_t* nextBelow = next + positiveStride;
-    const pixel_t* next2Above2 = next2 - stride2;
-    const pixel_t* next2Below2 = next2 + stride2;
-
-    for (int x = 0; x < width; x += step) {
-        if constexpr (std::is_same_v<pixel_t, uint8_t>) {
-            const Vec16s c = Vec16s().load_16uc(curAbove + x);
-            const Vec16s d = (Vec16s().load_16uc(prev2 + x) + Vec16s().load_16uc(next2 + x)) >> 1;
-            const Vec16s e = Vec16s().load_16uc(curBelow + x);
-            const Vec16s temporal_diff0 = abs(Vec16s().load_16uc(prev2 + x) - Vec16s().load_16uc(next2 + x));
-            const Vec16s temporal_diff1 = (abs(Vec16s().load_16uc(prevAbove + x) - c) + abs(Vec16s().load_16uc(prevBelow + x) - e)) >> 1;
-            const Vec16s temporal_diff2 = (abs(Vec16s().load_16uc(nextAbove + x) - c) + abs(Vec16s().load_16uc(nextBelow + x) - e)) >> 1;
-            const Vec16s temporal_diff = max(max(temporal_diff0 >> 1, temporal_diff1), temporal_diff2);
-
-            Vec16s diff = temporal_diff;
-            if constexpr (spat) {
-                const Vec16s b = ((Vec16s().load_16uc(prev2Above2 + x) + Vec16s().load_16uc(next2Above2 + x)) >> 1) - c;
-                const Vec16s f = ((Vec16s().load_16uc(prev2Below2 + x) + Vec16s().load_16uc(next2Below2 + x)) >> 1) - e;
-                const Vec16s dc = d - c;
-                const Vec16s de = d - e;
-                const Vec16s maximum = max(max(de, dc), min(b, f));
-                const Vec16s minimum = min(min(de, dc), max(b, f));
-                diff = max(max(temporal_diff, minimum), -maximum);
-            }
-
-            Vec16s interpol;
-            if constexpr (hasEdeint)
-                interpol = Vec16s().load_16uc(edeint + x);
-            else
-                interpol = (c + e) >> 1;
-            interpol = min(max(interpol, d - diff), d + diff);
-            interpol = select(temporal_diff == 0, d, interpol);
-
-            const auto result = compress_saturated_s2u(interpol, zero_si256()).get_low();
-            result.store_nt(dst + x);
-        } else if constexpr (std::is_same_v<pixel_t, uint16_t>) {
-            const Vec8i c = Vec8i().load_8us(curAbove + x);
-            const Vec8i d = (Vec8i().load_8us(prev2 + x) + Vec8i().load_8us(next2 + x)) >> 1;
-            const Vec8i e = Vec8i().load_8us(curBelow + x);
-            const Vec8i temporal_diff0 = abs(Vec8i().load_8us(prev2 + x) - Vec8i().load_8us(next2 + x));
-            const Vec8i temporal_diff1 = (abs(Vec8i().load_8us(prevAbove + x) - c) + abs(Vec8i().load_8us(prevBelow + x) - e)) >> 1;
-            const Vec8i temporal_diff2 = (abs(Vec8i().load_8us(nextAbove + x) - c) + abs(Vec8i().load_8us(nextBelow + x) - e)) >> 1;
-            const Vec8i temporal_diff = max(max(temporal_diff0 >> 1, temporal_diff1), temporal_diff2);
-
-            Vec8i diff = temporal_diff;
-            if constexpr (spat) {
-                const Vec8i b = ((Vec8i().load_8us(prev2Above2 + x) + Vec8i().load_8us(next2Above2 + x)) >> 1) - c;
-                const Vec8i f = ((Vec8i().load_8us(prev2Below2 + x) + Vec8i().load_8us(next2Below2 + x)) >> 1) - e;
-                const Vec8i dc = d - c;
-                const Vec8i de = d - e;
-                const Vec8i maximum = max(max(de, dc), min(b, f));
-                const Vec8i minimum = min(min(de, dc), max(b, f));
-                diff = max(max(temporal_diff, minimum), -maximum);
-            }
-
-            Vec8i interpol;
-            if constexpr (hasEdeint)
-                interpol = Vec8i().load_8us(edeint + x);
-            else
-                interpol = (c + e) >> 1;
-            interpol = min(max(interpol, d - diff), d + diff);
-            interpol = select(temporal_diff == 0, d, interpol);
-
-            const auto result = compress_saturated_s2u(interpol, zero_si256()).get_low();
-            result.store_nt(dst + x);
+    static constexpr auto store = [](auto interpol, auto dstp) noexcept {
+        if constexpr (std::is_integral_v<pixel_t>) {
+            auto result{ compress_saturated_s2u(interpol, zero_si256()).get_low() };
+            result.store_nt(dstp);
         } else {
-            const Vec8f c = Vec8f().load_a(curAbove + x);
-            const Vec8f d = (Vec8f().load_a(prev2 + x) + Vec8f().load_a(next2 + x)) * 0.5f;
-            const Vec8f e = Vec8f().load_a(curBelow + x);
-            const Vec8f temporal_diff0 = abs(Vec8f().load_a(prev2 + x) - Vec8f().load_a(next2 + x));
-            const Vec8f temporal_diff1 = (abs(Vec8f().load_a(prevAbove + x) - c) + abs(Vec8f().load_a(prevBelow + x) - e)) * 0.5f;
-            const Vec8f temporal_diff2 = (abs(Vec8f().load_a(nextAbove + x) - c) + abs(Vec8f().load_a(nextBelow + x) - e)) * 0.5f;
-            const Vec8f temporal_diff = max(max(temporal_diff0 * 0.5f, temporal_diff1), temporal_diff2);
-
-            Vec8f diff = temporal_diff;
-            if constexpr (spat) {
-                const Vec8f b = ((Vec8f().load_a(prev2Above2 + x) + Vec8f().load_a(next2Above2 + x)) * 0.5f) - c;
-                const Vec8f f = ((Vec8f().load_a(prev2Below2 + x) + Vec8f().load_a(next2Below2 + x)) * 0.5f) - e;
-                const Vec8f dc = d - c;
-                const Vec8f de = d - e;
-                const Vec8f maximum = max(max(de, dc), min(b, f));
-                const Vec8f minimum = min(min(de, dc), max(b, f));
-                diff = max(max(temporal_diff, minimum), -maximum);
-            }
-
-            Vec8f interpol;
-            if constexpr (hasEdeint)
-                interpol = Vec8f().load_a(edeint + x);
-            else
-                interpol = (c + e) * 0.5f;
-            interpol = min(max(interpol, d - diff), d + diff);
-            interpol = select(temporal_diff == 0, d, interpol);
-
-            interpol.store_nt(dst + x);
+            interpol.store_nt(dstp);
         }
+    };
+
+    auto prev2{ reinterpret_cast<const pixel_t*>(_prev2) };
+    auto prev{ reinterpret_cast<const pixel_t*>(_prev) };
+    auto cur{ reinterpret_cast<const pixel_t*>(_cur) };
+    auto next{ reinterpret_cast<const pixel_t*>(_next) };
+    auto next2{ reinterpret_cast<const pixel_t*>(_next2) };
+    auto edeint{ reinterpret_cast<const pixel_t*>(_edeint) };
+    auto dst{ reinterpret_cast<pixel_t*>(_dst) };
+
+    auto prev2Above2{ prev2 - stride2 };
+    auto prev2Below2{ prev2 + stride2 };
+    auto prevAbove{ prev + negativeStride };
+    auto prevBelow{ prev + positiveStride };
+    auto curAbove{ cur + negativeStride };
+    auto curBelow{ cur + positiveStride };
+    auto nextAbove{ next + negativeStride };
+    auto nextBelow{ next + positiveStride };
+    auto next2Above2{ next2 - stride2 };
+    auto next2Below2{ next2 + stride2 };
+
+    for (auto x{ 0 }; x < width; x += step) {
+        auto c{ load(curAbove + x) };
+        auto d{ div2<pixel_t>(load(prev2 + x) + load(next2 + x)) };
+        auto e{ load(curBelow + x) };
+        auto temporal_diff0{ abs(load(prev2 + x) - load(next2 + x)) };
+        auto temporal_diff1{ div2<pixel_t>(abs(load(prevAbove + x) - c) + abs(load(prevBelow + x) - e)) };
+        auto temporal_diff2{ div2<pixel_t>(abs(load(nextAbove + x) - c) + abs(load(nextBelow + x) - e)) };
+        auto temporal_diff{ max(max(div2<pixel_t>(temporal_diff0), temporal_diff1), temporal_diff2) };
+
+        auto diff{ temporal_diff };
+        if constexpr (spat) {
+            auto b{ div2<pixel_t>(load(prev2Above2 + x) + load(next2Above2 + x)) - c };
+            auto f{ div2<pixel_t>(load(prev2Below2 + x) + load(next2Below2 + x)) - e };
+            auto dc{ d - c };
+            auto de{ d - e };
+            auto maximum{ max(max(de, dc), min(b, f)) };
+            auto minimum{ min(min(de, dc), max(b, f)) };
+            diff = max(max(diff, minimum), -maximum);
+        }
+
+        decltype(d) interpol;
+        if constexpr (hasEdeint)
+            interpol = load(edeint + x);
+        else
+            interpol = div2<pixel_t>(c + e);
+        interpol = min(max(interpol, d - diff), d + diff);
+        interpol = select(temporal_diff == 0, d, interpol);
+
+        store(interpol, dst + x);
     }
 }
 
 template<typename pixel_t, bool hasEdeint>
 void filterLine_avx2(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst,
-                     const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept {
-    const pixel_t* prev2 = reinterpret_cast<const pixel_t*>(_prev2);
-    const pixel_t* prev = reinterpret_cast<const pixel_t*>(_prev);
-    const pixel_t* cur = reinterpret_cast<const pixel_t*>(_cur);
-    const pixel_t* next = reinterpret_cast<const pixel_t*>(_next);
-    const pixel_t* next2 = reinterpret_cast<const pixel_t*>(_next2);
-    const pixel_t* edeint = reinterpret_cast<const pixel_t*>(_edeint);
-    pixel_t* dst = reinterpret_cast<pixel_t*>(_dst);
+                     const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept {
+    static constexpr auto load = [](auto srcp) noexcept {
+        if constexpr (std::is_same_v<pixel_t, uint8_t>)
+            return Vec8i().load_8uc(srcp);
+        else if constexpr (std::is_same_v<pixel_t, uint16_t>)
+            return Vec8i().load_8us(srcp);
+        else
+            return Vec8f().load_a(srcp);
+    };
 
-    const pixel_t* prev2Above4 = prev2 - stride4;
-    const pixel_t* prev2Above2 = prev2 - stride2;
-    const pixel_t* prev2Below2 = prev2 + stride2;
-    const pixel_t* prev2Below4 = prev2 + stride4;
-    const pixel_t* prevAbove = prev - stride;
-    const pixel_t* prevBelow = prev + stride;
-    const pixel_t* curAbove3 = cur - stride3;
-    const pixel_t* curAbove = cur - stride;
-    const pixel_t* curBelow = cur + stride;
-    const pixel_t* curBelow3 = cur + stride3;
-    const pixel_t* nextAbove = next - stride;
-    const pixel_t* nextBelow = next + stride;
-    const pixel_t* next2Above4 = next2 - stride4;
-    const pixel_t* next2Above2 = next2 - stride2;
-    const pixel_t* next2Below2 = next2 + stride2;
-    const pixel_t* next2Below4 = next2 + stride4;
-
-    for (int x = 0; x < width; x += step) {
+    static constexpr auto store = [](auto interpol, auto dstp) noexcept {
         if constexpr (std::is_same_v<pixel_t, uint8_t>) {
-            const Vec8i c = Vec8i().load_8uc(curAbove + x);
-            const Vec8i d = (Vec8i().load_8uc(prev2 + x) + Vec8i().load_8uc(next2 + x)) >> 1;
-            const Vec8i e = Vec8i().load_8uc(curBelow + x);
-            const Vec8i temporal_diff0 = abs(Vec8i().load_8uc(prev2 + x) - Vec8i().load_8uc(next2 + x));
-            const Vec8i temporal_diff1 = (abs(Vec8i().load_8uc(prevAbove + x) - c) + abs(Vec8i().load_8uc(prevBelow + x) - e)) >> 1;
-            const Vec8i temporal_diff2 = (abs(Vec8i().load_8uc(nextAbove + x) - c) + abs(Vec8i().load_8uc(nextBelow + x) - e)) >> 1;
-            const Vec8i temporal_diff = max(max(temporal_diff0 >> 1, temporal_diff1), temporal_diff2);
-
-            const Vec8i b = ((Vec8i().load_8uc(prev2Above2 + x) + Vec8i().load_8uc(next2Above2 + x)) >> 1) - c;
-            const Vec8i f = ((Vec8i().load_8uc(prev2Below2 + x) + Vec8i().load_8uc(next2Below2 + x)) >> 1) - e;
-            const Vec8i dc = d - c;
-            const Vec8i de = d - e;
-            const Vec8i maximum = max(max(de, dc), min(b, f));
-            const Vec8i minimum = min(min(de, dc), max(b, f));
-            const Vec8i diff = max(max(temporal_diff, minimum), -maximum);
-
-            const Vec8i interpol1 = (((coef_hf[0] * (Vec8i().load_8uc(prev2 + x) + Vec8i().load_8uc(next2 + x))
-                                       - coef_hf[1] * (Vec8i().load_8uc(prev2Above2 + x) + Vec8i().load_8uc(next2Above2 + x) + Vec8i().load_8uc(prev2Below2 + x) + Vec8i().load_8uc(next2Below2 + x))
-                                       + coef_hf[2] * (Vec8i().load_8uc(prev2Above4 + x) + Vec8i().load_8uc(next2Above4 + x) + Vec8i().load_8uc(prev2Below4 + x) + Vec8i().load_8uc(next2Below4 + x))) >> 2)
-                                     + coef_lf[0] * (c + e) - coef_lf[1] * (Vec8i().load_8uc(curAbove3 + x) + Vec8i().load_8uc(curBelow3 + x))) >> 13;
-
-            Vec8i interpol2;
-            if constexpr (hasEdeint)
-                interpol2 = Vec8i().load_8uc(edeint + x);
-            else
-                interpol2 = (coef_sp[0] * (c + e) - coef_sp[1] * (Vec8i().load_8uc(curAbove3 + x) + Vec8i().load_8uc(curBelow3 + x))) >> 13;
-
-            Vec8i interpol = select(abs(c - e) > temporal_diff0, interpol1, interpol2);
-            interpol = min(max(interpol, d - diff), d + diff);
-            interpol = select(temporal_diff == 0, d, interpol);
-
-            const auto result = compress_saturated_s2u(compress_saturated(interpol, zero_si256()), zero_si256()).get_low();
-            result.storel(dst + x);
+            auto result{ compress_saturated_s2u(compress_saturated(interpol, zero_si256()), zero_si256()).get_low() };
+            result.storel(dstp);
         } else if constexpr (std::is_same_v<pixel_t, uint16_t>) {
-            const Vec8i c = Vec8i().load_8us(curAbove + x);
-            const Vec8i d = (Vec8i().load_8us(prev2 + x) + Vec8i().load_8us(next2 + x)) >> 1;
-            const Vec8i e = Vec8i().load_8us(curBelow + x);
-            const Vec8i temporal_diff0 = abs(Vec8i().load_8us(prev2 + x) - Vec8i().load_8us(next2 + x));
-            const Vec8i temporal_diff1 = (abs(Vec8i().load_8us(prevAbove + x) - c) + abs(Vec8i().load_8us(prevBelow + x) - e)) >> 1;
-            const Vec8i temporal_diff2 = (abs(Vec8i().load_8us(nextAbove + x) - c) + abs(Vec8i().load_8us(nextBelow + x) - e)) >> 1;
-            const Vec8i temporal_diff = max(max(temporal_diff0 >> 1, temporal_diff1), temporal_diff2);
-
-            const Vec8i b = ((Vec8i().load_8us(prev2Above2 + x) + Vec8i().load_8us(next2Above2 + x)) >> 1) - c;
-            const Vec8i f = ((Vec8i().load_8us(prev2Below2 + x) + Vec8i().load_8us(next2Below2 + x)) >> 1) - e;
-            const Vec8i dc = d - c;
-            const Vec8i de = d - e;
-            const Vec8i maximum = max(max(de, dc), min(b, f));
-            const Vec8i minimum = min(min(de, dc), max(b, f));
-            const Vec8i diff = max(max(temporal_diff, minimum), -maximum);
-
-            const Vec8i interpol1 = (((coef_hf[0] * (Vec8i().load_8us(prev2 + x) + Vec8i().load_8us(next2 + x))
-                                       - coef_hf[1] * (Vec8i().load_8us(prev2Above2 + x) + Vec8i().load_8us(next2Above2 + x) + Vec8i().load_8us(prev2Below2 + x) + Vec8i().load_8us(next2Below2 + x))
-                                       + coef_hf[2] * (Vec8i().load_8us(prev2Above4 + x) + Vec8i().load_8us(next2Above4 + x) + Vec8i().load_8us(prev2Below4 + x) + Vec8i().load_8us(next2Below4 + x))) >> 2)
-                                     + coef_lf[0] * (c + e) - coef_lf[1] * (Vec8i().load_8us(curAbove3 + x) + Vec8i().load_8us(curBelow3 + x))) >> 13;
-
-            Vec8i interpol2;
-            if constexpr (hasEdeint)
-                interpol2 = Vec8i().load_8us(edeint + x);
-            else
-                interpol2 = (coef_sp[0] * (c + e) - coef_sp[1] * (Vec8i().load_8us(curAbove3 + x) + Vec8i().load_8us(curBelow3 + x))) >> 13;
-
-            Vec8i interpol = select(abs(c - e) > temporal_diff0, interpol1, interpol2);
-            interpol = min(max(interpol, d - diff), d + diff);
-            interpol = select(temporal_diff == 0, d, interpol);
-
-            const auto result = compress_saturated_s2u(interpol, zero_si256()).get_low();
-            result.store_nt(dst + x);
+            auto result{ compress_saturated_s2u(interpol, zero_si256()).get_low() };
+            result.store_nt(dstp);
         } else {
-            const Vec8f c = Vec8f().load_a(curAbove + x);
-            const Vec8f d = (Vec8f().load_a(prev2 + x) + Vec8f().load_a(next2 + x)) * 0.5f;
-            const Vec8f e = Vec8f().load_a(curBelow + x);
-            const Vec8f temporal_diff0 = abs(Vec8f().load_a(prev2 + x) - Vec8f().load_a(next2 + x));
-            const Vec8f temporal_diff1 = (abs(Vec8f().load_a(prevAbove + x) - c) + abs(Vec8f().load_a(prevBelow + x) - e)) * 0.5f;
-            const Vec8f temporal_diff2 = (abs(Vec8f().load_a(nextAbove + x) - c) + abs(Vec8f().load_a(nextBelow + x) - e)) * 0.5f;
-            const Vec8f temporal_diff = max(max(temporal_diff0 * 0.5f, temporal_diff1), temporal_diff2);
-
-            const Vec8f b = ((Vec8f().load_a(prev2Above2 + x) + Vec8f().load_a(next2Above2 + x)) * 0.5f) - c;
-            const Vec8f f = ((Vec8f().load_a(prev2Below2 + x) + Vec8f().load_a(next2Below2 + x)) * 0.5f) - e;
-            const Vec8f dc = d - c;
-            const Vec8f de = d - e;
-            const Vec8f maximum = max(max(de, dc), min(b, f));
-            const Vec8f minimum = min(min(de, dc), max(b, f));
-            const Vec8f diff = max(max(temporal_diff, minimum), -maximum);
-
-            const Vec8f interpol1 = ((coef_hf_f[0] * (Vec8f().load_a(prev2 + x) + Vec8f().load_a(next2 + x))
-                                      - coef_hf_f[1] * (Vec8f().load_a(prev2Above2 + x) + Vec8f().load_a(next2Above2 + x) + Vec8f().load_a(prev2Below2 + x) + Vec8f().load_a(next2Below2 + x))
-                                      + coef_hf_f[2] * (Vec8f().load_a(prev2Above4 + x) + Vec8f().load_a(next2Above4 + x) + Vec8f().load_a(prev2Below4 + x) + Vec8f().load_a(next2Below4 + x))) * 0.25f
-                                     + coef_lf_f[0] * (c + e) - coef_lf_f[1] * (Vec8f().load_a(curAbove3 + x) + Vec8f().load_a(curBelow3 + x)));
-
-            Vec8f interpol2;
-            if constexpr (hasEdeint)
-                interpol2 = Vec8f().load_a(edeint + x);
-            else
-                interpol2 = coef_sp_f[0] * (c + e) - coef_sp_f[1] * (Vec8f().load_a(curAbove3 + x) + Vec8f().load_a(curBelow3 + x));
-
-            Vec8f interpol = select(abs(c - e) > temporal_diff0, interpol1, interpol2);
-            interpol = min(max(interpol, d - diff), d + diff);
-            interpol = select(temporal_diff == 0, d, interpol);
-
-            interpol.store_nt(dst + x);
+            interpol.store_nt(dstp);
         }
+    };
+
+    auto prev2{ reinterpret_cast<const pixel_t*>(_prev2) };
+    auto prev{ reinterpret_cast<const pixel_t*>(_prev) };
+    auto cur{ reinterpret_cast<const pixel_t*>(_cur) };
+    auto next{ reinterpret_cast<const pixel_t*>(_next) };
+    auto next2{ reinterpret_cast<const pixel_t*>(_next2) };
+    auto edeint{ reinterpret_cast<const pixel_t*>(_edeint) };
+    auto dst{ reinterpret_cast<pixel_t*>(_dst) };
+
+    auto prev2Above4{ prev2 - stride4 };
+    auto prev2Above2{ prev2 - stride2 };
+    auto prev2Below2{ prev2 + stride2 };
+    auto prev2Below4{ prev2 + stride4 };
+    auto prevAbove{ prev - stride };
+    auto prevBelow{ prev + stride };
+    auto curAbove3{ cur - stride3 };
+    auto curAbove{ cur - stride };
+    auto curBelow{ cur + stride };
+    auto curBelow3{ cur + stride3 };
+    auto nextAbove{ next - stride };
+    auto nextBelow{ next + stride };
+    auto next2Above4{ next2 - stride4 };
+    auto next2Above2{ next2 - stride2 };
+    auto next2Below2{ next2 + stride2 };
+    auto next2Below4{ next2 + stride4 };
+
+    for (auto x{ 0 }; x < width; x += step) {
+        auto c{ load(curAbove + x) };
+        auto d{ div2<pixel_t>(load(prev2 + x) + load(next2 + x)) };
+        auto e{ load(curBelow + x) };
+        auto temporal_diff0{ abs(load(prev2 + x) - load(next2 + x)) };
+        auto temporal_diff1{ div2<pixel_t>(abs(load(prevAbove + x) - c) + abs(load(prevBelow + x) - e)) };
+        auto temporal_diff2{ div2<pixel_t>(abs(load(nextAbove + x) - c) + abs(load(nextBelow + x) - e)) };
+        auto temporal_diff{ max(max(div2<pixel_t>(temporal_diff0), temporal_diff1), temporal_diff2) };
+
+        auto b{ div2<pixel_t>(load(prev2Above2 + x) + load(next2Above2 + x)) - c };
+        auto f{ div2<pixel_t>(load(prev2Below2 + x) + load(next2Below2 + x)) - e };
+        auto dc{ d - c };
+        auto de{ d - e };
+        auto maximum{ max(max(de, dc), min(b, f)) };
+        auto minimum{ min(min(de, dc), max(b, f)) };
+        auto diff{ max(max(temporal_diff, minimum), -maximum) };
+
+        auto interpol1{ div4<pixel_t>(coefHF<pixel_t>()[0] * (load(prev2 + x) + load(next2 + x))
+                                       - coefHF<pixel_t>()[1] * (load(prev2Above2 + x) + load(next2Above2 + x) + load(prev2Below2 + x) + load(next2Below2 + x))
+                                       + coefHF<pixel_t>()[2] * (load(prev2Above4 + x) + load(next2Above4 + x) + load(prev2Below4 + x) + load(next2Below4 + x)))
+            + coefLF<pixel_t>()[0] * (c + e) - coefLF<pixel_t>()[1] * (load(curAbove3 + x) + load(curBelow3 + x)) };
+        if constexpr (std::is_integral_v<pixel_t>)
+            interpol1 >>= 13;
+
+        decltype(d) interpol2;
+        if constexpr (hasEdeint) {
+            interpol2 = load(edeint + x);
+        } else {
+            interpol2 = coefSP<pixel_t>()[0] * (c + e) - coefSP<pixel_t>()[1] * (load(curAbove3 + x) + load(curBelow3 + x));
+            if constexpr (std::is_integral_v<pixel_t>)
+                interpol2 >>= 13;
+        }
+
+        auto interpol{ select(abs(c - e) > temporal_diff0, interpol1, interpol2) };
+        interpol = min(max(interpol, d - diff), d + diff);
+        if constexpr (std::is_integral_v<pixel_t>)
+            interpol = min(max(interpol, 0), peak);
+        interpol = select(temporal_diff == 0, d, interpol);
+
+        store(interpol, dst + x);
     }
 }
 
@@ -264,10 +178,10 @@ template void filterEdge_avx2<float, true, false>(const void* _prev2, const void
 template void filterEdge_avx2<float, false, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept;
 template void filterEdge_avx2<float, false, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int positiveStride, const int negativeStride, const int stride2, const int step) noexcept;
 
-template void filterLine_avx2<uint8_t, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
-template void filterLine_avx2<uint8_t, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
-template void filterLine_avx2<uint16_t, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
-template void filterLine_avx2<uint16_t, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
-template void filterLine_avx2<float, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
-template void filterLine_avx2<float, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step) noexcept;
+template void filterLine_avx2<uint8_t, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_avx2<uint8_t, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_avx2<uint16_t, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_avx2<uint16_t, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_avx2<float, true>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
+template void filterLine_avx2<float, false>(const void* _prev2, const void* _prev, const void* _cur, const void* _next, const void* _next2, const void* _edeint, void* _dst, const int width, const int stride, const int stride2, const int stride3, const int stride4, const int step, const int peak) noexcept;
 #endif
