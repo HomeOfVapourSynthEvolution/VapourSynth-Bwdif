@@ -2,7 +2,7 @@ project('Bwdif', 'cpp',
   default_options: ['buildtype=release', 'warning_level=2', 'b_lto=true', 'b_ndebug=if-release', 'cpp_std=c++17'],
   license: 'LGPL-3.0-or-later',
   meson_version: '>=0.51.0',
-  version: '3'
+  version: '4'
 )
 
 cxx = meson.get_compiler('cpp')
@@ -10,7 +10,7 @@ cxx = meson.get_compiler('cpp')
 gcc_syntax = cxx.get_argument_syntax() == 'gcc'
 
 if get_option('buildtype') == 'release'
-  add_project_arguments(gcc_syntax ? ['-fno-math-errno', '-fno-trapping-math'] : ['/GS-', '/fp:except-'], language: 'cpp')
+  add_project_arguments(gcc_syntax ? ['-fno-math-errno', '-fno-trapping-math'] : '/GS-', language: 'cpp')
 endif
 
 if gcc_syntax
@@ -61,13 +61,13 @@ if host_machine.cpu_family().startswith('x86')
   ]
 
   libs += static_library('avx2', 'Bwdif/Bwdif_AVX2.cpp',
-    cpp_args: gcc_syntax ? ['-mavx2', '-mfma'] : ['/arch:AVX2'],
+    cpp_args: gcc_syntax ? ['-mavx2', '-mfma'] : '/arch:AVX2',
     dependencies: vapoursynth_dep,
     gnu_symbol_visibility: 'hidden'
   )
 
   libs += static_library('avx512', 'Bwdif/Bwdif_AVX512.cpp',
-    cpp_args: gcc_syntax ? ['-mavx512f', '-mavx512bw', '-mavx512dq', '-mavx512vl', '-mfma'] : ['/arch:AVX512'],
+    cpp_args: gcc_syntax ? ['-mavx512f', '-mavx512bw', '-mavx512dq', '-mavx512vl', '-mfma'] : '/arch:AVX512',
     dependencies: vapoursynth_dep,
     gnu_symbol_visibility: 'hidden'
   )
